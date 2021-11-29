@@ -1,0 +1,108 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+  <!-- Тег meta для указания кодировки -->
+  <meta charset="utf-8">
+</head>
+
+<body>
+
+
+ <button onclick="searchDevices(2000);">Search BLE</button>
+
+<script type="text/javascript">
+
+
+	function searchDevices(shotCount) {
+
+		this.characteristic = null;
+		this.level = 0;
+
+		navigator.bluetooth.requestDevice({ acceptAllDevices: true,
+  			optionalServices: ['49535343-fe7d-4ae5-8fa9-9fafd205e455'] })
+		.then(device => {
+			console.log('device.gatt.connect');
+			return device.gatt.connect()
+		})
+		.then(server => {
+			console.log('server.getPrimaryService');
+			return server.getPrimaryService(['49535343-fe7d-4ae5-8fa9-9fafd205e455'])
+		})
+		.then(service => {
+			console.log('service.getCharacteristic');
+			return service.getCharacteristic(['49535343-1e4d-4bd9-ba61-23c647249616'])
+		})
+		.then(characteristic => {
+			console.log('characteristic.startNotifications');
+			this.characteristic = characteristic;
+			this.characteristic.startNotifications()
+		})
+		.then(characteristic => {
+			console.log('characteristic.addEventListener');
+  			this.characteristic.addEventListener('characteristicvaluechanged', (event => {
+            	let answer = eventToString(event);
+  				console.log('Answer ' + answer);
+
+  				let arrayStr = answer.split(',');
+
+		  		if(arrayStr[0] == ':02') {
+		  			console.log('level str ' + arrayStr[7]);
+		  			this.level = parseInt(arrayStr[7], 10);
+		  			// console.log('level ' + this.level);
+		  		}
+            }));
+		})
+		.then(characteristic => {
+			let encoder = new TextEncoder('utf-8');
+			let strCommand = ':80,0002,00000000000000,33333333,9876\r';
+  			let connectCommand = encoder.encode(strCommand);
+  			console.log(strCommand);
+  			return this.characteristic .writeValue(connectCommand);
+		})
+		.then(_ => {
+			let encoder = new TextEncoder('utf-8');
+  			let strCommand = ':81,00,02,9876\r';
+  			let statusCommand = encoder.encode(strCommand);
+  			console.log(strCommand);
+  			return this.characteristic.writeValue(statusCommand);
+		})
+		// .then(_ => {
+		// 	// debug command
+		// 	let encoder = new TextEncoder('utf-8');
+  		// 	let debugCommand = encoder.encode(':02,19071205123826,000c,100,40,+23,1504,12');
+  		// 	return this.characteristic.writeValue(debugCommand);
+		// })
+		.then(_ => {
+			let encoder = new TextEncoder('utf-8');
+  			let strCommand = ':81,00,80,9876,' + this.level.toString(16) + ',' + (this.level + 1).toString(16) + ',' + shotCount + '\r';
+  			let performedServiceCommand = encoder.encode(strCommand);
+  			console.log(strCommand);
+  			return this.characteristic.writeValue(performedServiceCommand);
+		})
+		.then(_ => {
+			console.log('OK');
+			alert('OK');
+		})
+		.catch(error => { 
+			console.log(error);
+			alert(error); 
+		});
+	}
+
+	function eventToString(event) {
+		var receivedData = new Uint8Array(event.target.value.byteLength);
+		for (var i = 0; i < event.target.value.byteLength; i++) {
+			receivedData[i] = event.target.value.getUint8(i);
+		}
+    	var encodedString = String.fromCharCode.apply(null, receivedData),
+        	decodedString = decodeURIComponent(encodedString);
+    	return decodedString;
+	}
+
+
+</script>
+
+</body>
+
+</html>
